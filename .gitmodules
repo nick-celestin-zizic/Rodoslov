@@ -1,0 +1,3 @@
+[submodule "modules/ncz"]
+	path = modules/ncz
+	url = https://github.com/nick-celestin-zizic/jai_ncz.git
