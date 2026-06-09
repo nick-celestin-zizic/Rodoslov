@@ -1,0 +1,26 @@
+<svg viewBox="0 0 192 192" width="170" height="170" role="img">
+  <title>Loza – family network icon concept (no rounded corners)</title>
+  <rect width="192" height="192" fill="#1C1240"></rect>
+  <line x1="96" y1="58" x2="96" y2="70" stroke="#EF9F27" stroke-width="2.5" stroke-linecap="butt"></line>
+  <line x1="60" y1="70" x2="132" y2="70" stroke="#EF9F27" stroke-width="2.5" stroke-linecap="butt"></line>
+  <line x1="60" y1="70" x2="60" y2="85" stroke="#EF9F27" stroke-width="2.5" stroke-linecap="butt"></line>
+  <line x1="132" y1="70" x2="132" y2="85" stroke="#EF9F27" stroke-width="2.5" stroke-linecap="butt"></line>
+  <line x1="60" y1="111" x2="60" y2="122" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="132" y1="111" x2="132" y2="122" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="36" y1="122" x2="84" y2="122" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="108" y1="122" x2="156" y2="122" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="36" y1="122" x2="36" y2="132" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="84" y1="122" x2="84" y2="132" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="108" y1="122" x2="108" y2="132" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <line x1="156" y1="122" x2="156" y2="132" stroke="#EF9F27" stroke-width="2" stroke-linecap="butt"></line>
+  <circle cx="36" cy="144" r="10" fill="#EF9F27"></circle>
+  <circle cx="84" cy="144" r="10" fill="#EF9F27"></circle>
+  <circle cx="108" cy="144" r="10" fill="#EF9F27"></circle>
+  <circle cx="156" cy="144" r="10" fill="#EF9F27"></circle>
+  <circle cx="60" cy="98" r="13" fill="#EF9F27"></circle>
+  <circle cx="132" cy="98" r="13" fill="#EF9F27"></circle>
+  <circle cx="60" cy="98" r="5" fill="#1C1240"></circle>
+  <circle cx="132" cy="98" r="5" fill="#1C1240"></circle>
+  <circle cx="96" cy="42" r="16" fill="#EF9F27"></circle>
+  <circle cx="96" cy="42" r="7" fill="#1C1240"></circle>
+</svg>

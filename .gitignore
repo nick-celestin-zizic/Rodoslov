@@ -1,0 +1,13 @@
+/.build
+/.build_android
+*.exe
+/AndroidProject
+*.bak
+*.sqlite3
+*.apk
+*.pdb
+*.rdi
+*.sqlite3-shm
+*.sqlite3-wal
+*.dll
+*.focus-config
