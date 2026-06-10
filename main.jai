@@ -235,8 +235,8 @@ main :: () {
         if   Windows.IsDebuggerPresent()
         then context.logger = (m: string, _: *void, info: Log_Info) {
             if info.common_flags
-            then Windows.OutputDebugStringA(tprint("[%] %\0", info.common_flags, m).data);
-            else Windows.OutputDebugStringA(temp_c_string(m));
+            then Windows.OutputDebugStringA(tprint("[%] %\n\0", info.common_flags, m).data);
+            else Windows.OutputDebugStringA(tprint("%\n\0", m).data);
         }
     }
     
@@ -355,6 +355,8 @@ root_offset := Vector3.{z=1.0}; // xy is position and z is zoom
 dragging := false;
 k: float;
 
+// #if OS == .ANDROID software_keyboard_enabled := false;
+
 current_time: float64;
 last_time: float64;
 update :: () {
@@ -409,9 +411,11 @@ update :: () {
     }
     
     defer {
+        push_allocator(context.default_allocator);
         profiler_zone("Blit");
-        draw_popups(,, context.default_allocator);
-        swap_buffers(window.handle);
+        draw_popups();
+        maybe_toggle_software_keyboard();
+        swap_buffers(window.handle);  
     }
     
     
@@ -449,7 +453,7 @@ update :: () {
             if !edit.open open_edit_subwindow(.ROOT);
         } else {
             width := window.width*0.25;
-            rect := Rect.{ (window.width-width)*0.5, k, width, 2*k };
+            rect := Rect.{ (window.width-width)*0.5, 3*k, width, 2*k };
             for id: roots {
                 status, person := get_person(*db, id,, temp);
                 assert(status == .OK);
@@ -520,7 +524,7 @@ draw_person :: (_r: Rect, using person: Person_Row, loc := #caller_location) {
         assert(ok);
         options_key = id;
         options_subwindow.open = true;
-        options_subwindow.rect = { xx x, xx y, k*7, k*4 };
+        options_subwindow.rect = { xx x, xx y, k*15, k*10 }; // TODO: clip to inside window
     }
     
     r.h /= 2;
@@ -871,8 +875,7 @@ modify_string :: (ps: *string, new_value: string) {
 #insert #run,host -> string { #import "ncz/SQLite"; return generate_schema_bindings({},
 {
     name = "family",
-    // path = "file:family.sqlite3?mode=memory&cache=shared",
-    path = "family.sqlite3",
+    path = "family.sqlite3",    
     init = #string _SQLITE
 pragma journal_mode = WAL;
 pragma synchronous  = NORMAL;
@@ -1024,7 +1027,6 @@ using Basic   :: #import "Basic"()(MEMORY_DEBUGGER=!true);
 #import "ncz/Tweaker";
 #import "Thread";
 
-#if OS == .ANDROID Android :: #import "Android"()(DEFINE_ANDROID_MAIN_AND_CALL_THIS=main);
 
 #if #run array_find(METAPROGRAM_PLUGINS, "ncz/tracy") {
     profiler_frame_mark :: context._Tracy.FrameMark;
@@ -1032,4 +1034,124 @@ using Basic   :: #import "Basic"()(MEMORY_DEBUGGER=!true);
 } else {
     profiler_frame_mark :: () #expand #no_debug {}
     profiler_zone       :: ($_ := "", _ := "", _: u32 = 0, _: u64 = 0, _ := #caller_location) #expand #no_debug {}
+}
+
+
+
+#if OS != .ANDROID maybe_toggle_software_keyboard :: () { }
+#if OS == .ANDROID {
+last_click: float64;
+last_active_widget: *GetRect.Active_Widget;
+maybe_toggle_software_keyboard :: () {
+    w := GetRect.active_widget;
+    
+    is_input  := w && w.widget_type == GetRect.Text_Input_State;
+    was_input := last_active_widget && last_active_widget.widget_type == GetRect.Text_Input_State;
+    
+    if is_input && last_click != w.(*Text_Input_State).last_click_time then toggle_software_keyboard(true);
+    else if is_input != was_input                                      then toggle_software_keyboard(is_input);
+    
+    if is_input then last_click = w.(*Text_Input_State).last_click_time;
+    last_active_widget = w;
+}
+
+Android :: #import "Android"()(DEFINE_ANDROID_MAIN_AND_CALL_THIS=main);
+toggle_software_keyboard :: (enable: bool) {
+    using Android;
+
+    vm  := Android.android_app.activity.vm;
+    env :  *JNIEnv;
+
+    attach := JavaVMAttachArgs.{
+        version = JNI_VERSION_1_6,
+        name    = "NativeThread",
+        group   = null,
+    };
+    
+    result := vm.*.AttachCurrentThread(vm, *env, *attach);
+    if (result == JNI_ERR) {
+        log_error("Could not attach to current thread");
+        return;
+    }
+
+    // Retrieves NativeActivity.
+    activity := Android.android_app.activity.clazz;
+    class    := env.*.GetObjectClass(env, activity);
+
+    // Context.INPUT_METHOD_SERVICE.
+    class_ctx := env.*.FindClass(env,"android/content/Context");
+    input_method_service_filed := env.*.GetStaticFieldID(env, class_ctx, "INPUT_METHOD_SERVICE", "Ljava/lang/String;");
+    input_method_service       := env.*.GetStaticObjectField(env, class_ctx, input_method_service_filed);
+    // JniCheck(input_method_service);
+
+    // getSystemService(Context.input_method_service).
+    input_manager_class        := env.*.FindClass(env, "android/view/inputmethod/InputMethodManager");
+    get_system_service_method  := env.*.GetMethodID(env, class, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+    input_method_manager       := env.*.CallObjectMethod(env, activity, get_system_service_method, input_method_service);
+
+    // getWindow().getDecorView().
+    get_window_method     := env.*.GetMethodID(env, class, "getWindow", "()Landroid/view/Window;");
+    window                := env.*.CallObjectMethod(env, activity, get_window_method);
+    window_class          := env.*.FindClass(env, "android/view/Window");
+    get_decor_view_method := env.*.GetMethodID(env, window_class, "getDecorView", "()Landroid/view/View;");
+    decor_view            := env.*.CallObjectMethod(env, window, get_decor_view_method);
+
+    flags: jint = 0;
+    if (enable) {
+        // input_method_manager.showSoftInput(...).
+        MethodShowSoftInput := env.*.GetMethodID(env, input_manager_class, "showSoftInput", "(Landroid/view/View;I)Z");
+        result              := env.*.CallBooleanMethod(env, input_method_manager, MethodShowSoftInput, decor_view, flags);
+    //     JniCheck(result);
+    } else {
+        // Runs window.getViewToken()
+        view_class              := env.*.FindClass(env, "android/view/View");
+        get_window_token_method := env.*.GetMethodID(env, view_class, "getWindowToken", "()Landroid/os/IBinder;");
+        binder                  := env.*.CallObjectMethod(env, decor_view, get_window_token_method);
+
+        // input_method_manager.hideSoftInput(...).
+        hide_soft_input_method := env.*.GetMethodID(env, input_manager_class, "hideSoftInputFromWindow", "(Landroid/os/IBinder;I)Z");
+        result                 := env.*.CallBooleanMethod(env, input_method_manager, hide_soft_input_method, binder, flags);
+    //     JniCheck(result);
+    }
+}
+
+is_software_keyboard_enabled :: () -> bool {
+    using Android;
+
+    vm  := Android.android_app.activity.vm;
+    env :  *JNIEnv;
+
+    attach := JavaVMAttachArgs.{
+        version = JNI_VERSION_1_6,
+        name    = "NativeThread",
+        group   = null,
+    };
+    
+    result := vm.*.AttachCurrentThread(vm, *env, *attach);
+    if (result == JNI_ERR) {
+        log_error("Could not attach to current thread");
+        return false;
+    }
+
+    // Retrieves NativeActivity.
+    activity := Android.android_app.activity.clazz;
+    class    := env.*.GetObjectClass(env, activity);
+
+    // Context.INPUT_METHOD_SERVICE.
+    class_ctx := env.*.FindClass(env, "android/content/Context");
+    input_method_service_field := env.*.GetStaticFieldID(env, class_ctx, "INPUT_METHOD_SERVICE", "Ljava/lang/String;");
+    input_method_service       := env.*.GetStaticObjectField(env, class_ctx, input_method_service_field);
+
+    // getSystemService(Context.input_method_service).
+    input_manager_class       := env.*.FindClass(env, "android/view/inputmethod/InputMethodManager");
+    get_system_service_method := env.*.GetMethodID(env, class, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+    input_method_manager      := env.*.CallObjectMethod(env, activity, get_system_service_method, input_method_service);
+
+    // Call isAcceptingText() on InputMethodManager
+    is_accepting_text_method := env.*.GetMethodID(env, input_manager_class, "isAcceptingText", "()Z");
+    is_accepting := env.*.CallBooleanMethod(env, input_method_manager, is_accepting_text_method);
+
+    return xx is_accepting;
+}
+
 }
